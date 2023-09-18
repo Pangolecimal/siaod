@@ -21,7 +21,7 @@ fn main() {
     t2b();
     t2c();
 
-    // create_numbers_file();
+    create_numbers_file();
     t3a_loud();
     t3b();
 }
@@ -170,10 +170,8 @@ fn create_numbers_file() {
     println!("    generating random numbers");
     // generate shuffled array of all 32-bit numbers in the range [0..10_000_000]
     let mut rng = rand::thread_rng(); // Random Number Generator
-    let n: u32 = 1_000_000 + (rand::random::<u32>() % 9_000_001);
-    let mut arr = (0..10_000_000)
-        .map(|n| n.to_string())
-        .collect::<Vec<String>>();
+    let n: u32 = 1_000_000 + (rand::random::<u32>() % 9_000_000);
+    let mut arr: Vec<String> = (0..10_000_000).map(|n| n.to_string()).collect();
     arr.shuffle(&mut rng);
     let arr = &arr[0..n as usize].join("\n");
 
@@ -289,6 +287,7 @@ fn t3b() {
     println!("task 3.b:");
 
     // benchmark time
+    fs::write("./numbers_sorted.txt", "").unwrap(); // clear the `sorted` file
     println!("    ...benchmarking time");
     benchmarking::warm_up();
     let bench_result = benchmarking::bench_function(|measurer| {
@@ -298,6 +297,7 @@ fn t3b() {
     println!("    Time spent: {:?}", bench_result.elapsed());
 
     // benchmark memory usage
+    fs::write("./numbers_sorted.txt", "").unwrap(); // clear the `sorted` file
     println!("    ...benchmarking memory usage");
     t3a_memory();
 }
