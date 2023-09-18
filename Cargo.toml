@@ -7,3 +7,7 @@ edition = "2021"
 
 [dependencies]
 rand = "0.8.5"
+benchmarking = "0.4.12"
+# heapsize = "0.4.2"
+jemalloc-ctl = "0.5.4"
+jemallocator = "0.5.4"

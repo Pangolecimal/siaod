@@ -1,7 +1,16 @@
 #![allow(dead_code)]
-use std::fs;
+use std::{
+    fs::{self, read_to_string, OpenOptions},
+    io::BufWriter,
+    io::Write,
+};
 
+// use heapsize::HeapSizeOf;
+use jemalloc_ctl::{epoch, stats};
 use rand::prelude::*;
+
+#[global_allocator]
+static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
 fn main() {
     t1a();
@@ -13,7 +22,8 @@ fn main() {
     t2c();
 
     // create_numbers_file();
-    t3a();
+    t3a_loud();
+    t3b();
 }
 
 fn t1a() {
@@ -155,19 +165,139 @@ fn t2c() {
 }
 
 fn create_numbers_file() {
+    println!();
+    println!("creation of the `number` files");
+    println!("    generating random numbers");
     // generate shuffled array of all 32-bit numbers in the range [0..10_000_000]
     let mut rng = rand::thread_rng(); // Random Number Generator
+    let n: u32 = 1_000_000 + (rand::random::<u32>() % 9_000_001);
     let mut arr = (0..10_000_000)
         .map(|n| n.to_string())
         .collect::<Vec<String>>();
     arr.shuffle(&mut rng);
-    let arr = arr.join("\n");
+    let arr = &arr[0..n as usize].join("\n");
 
+    println!("    creating/writing the `random` file");
     // write the array to the `numbers_random.txt` file
     fs::write("./numbers_random.txt", arr).unwrap();
+
+    println!("    creating/writing the `sorted` file");
+    // create/empty the file for the sorted numbers
+    fs::write("./numbers_sorted.txt", "").unwrap();
 }
 
-fn t3a() {
+fn t3a_silent() {
+    // create a bit vector to store the occurrences of the numbers
+    let mut bit_arr: Vec<bool> = vec![false; 10_000_000];
+
+    // read the file
+    for line in read_to_string("numbers_random.txt").unwrap().lines() {
+        let n = line.parse::<usize>().unwrap();
+        bit_arr[n] = true;
+    }
+
+    // write to the sorted file
+    let file = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open("./numbers_sorted.txt")
+        .expect("unable to open file");
+    let mut file = BufWriter::new(file);
+    for i in 0..10_000_000 {
+        if bit_arr[i] {
+            writeln!(file, "{}", i).expect("unable to write");
+        }
+    }
+}
+
+fn t3a_loud() {
     println!();
-    println!("task 2.c:");
+    println!("task 3.a:");
+
+    // create a bit vector to store the occurrences of the numbers
+    println!("    creating the bit array");
+
+    let mut bit_arr: Vec<bool> = vec![false; 10_000_000];
+
+    // read the file
+    println!("    reading the `random` file into bit array");
+
+    for line in read_to_string("numbers_random.txt").unwrap().lines() {
+        let n = line.parse::<usize>().unwrap();
+        bit_arr[n] = true;
+    }
+
+    // write to the sorted file
+    println!("    writing the sorted file");
+
+    let file = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open("./numbers_sorted.txt")
+        .expect("unable to open file");
+    let mut file = BufWriter::new(file);
+    for i in 0..10_000_000 {
+        if bit_arr[i] {
+            writeln!(file, "{}", i).expect("unable to write");
+        }
+    }
+
+    println!("    finished gracefully.");
+}
+
+fn t3a_memory() {
+    let e = epoch::mib().unwrap();
+    let allocated = stats::allocated::mib().unwrap();
+
+    let mem_pre = allocated.read().unwrap();
+
+    // create a bit vector to store the occurrences of the numbers
+    let mut bit_arr: Vec<bool> = vec![false; 10_000_000];
+
+    // read the file
+    for line in read_to_string("numbers_random.txt").unwrap().lines() {
+        let n = line.parse::<usize>().unwrap();
+        bit_arr[n] = true;
+    }
+
+    // write to the sorted file
+    let file = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open("./numbers_sorted.txt")
+        .expect("unable to open file");
+    let mut file = BufWriter::new(file);
+    for i in 0..10_000_000 {
+        if bit_arr[i] {
+            writeln!(file, "{}", i).expect("unable to write");
+        }
+    }
+
+    e.advance().unwrap();
+    let mem_post = allocated.read().unwrap();
+
+    println!(
+        "    (in bytes) mem_pre: {}, mem_post: {}, diff: {}",
+        mem_pre,
+        mem_post,
+        mem_post - mem_pre
+    );
+}
+
+fn t3b() {
+    println!();
+    println!("task 3.b:");
+
+    // benchmark time
+    println!("    ...benchmarking time");
+    benchmarking::warm_up();
+    let bench_result = benchmarking::bench_function(|measurer| {
+        measurer.measure(|| t3a_silent());
+    })
+    .unwrap();
+    println!("    Time spent: {:?}", bench_result.elapsed());
+
+    // benchmark memory usage
+    println!("    ...benchmarking memory usage");
+    t3a_memory();
 }
