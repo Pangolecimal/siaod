@@ -1,76 +1,148 @@
 #![allow(dead_code, unused_variables)]
 
-use std::io::{self, Write};
+use colored::Colorize;
+use std::{
+    io::{self, Write},
+    ops::Deref,
+};
 
 fn main() -> io::Result<()> {
     //{{{
-    // let raw_data = gen_raw_data(10);
-    // println!("{:#?}", raw_data);
 
-    // let foo = HashTable::from_vec(gen_raw_data(4));
-    // println!("{:#?}", foo);
-
+    // the PRIMARY command.
     let mut buffer_a = String::new();
+    // the SECONDARY command.
     let mut buffer_b = String::new();
     let stdin = io::stdin();
 
+    // the HASH TABLE of types: key=u32, value=String.
     let mut hash_table: HashTable<u32, String> = HashTable::new();
 
-    let commands = vec!["exit", "fill", "add", "remove", "print", "clear"];
-    println!("Available commands: {:?}", commands);
+    // all supported commands.
+    let commands = vec!["exit", "fill", "add", "remove", "print", "clear", "find"];
 
+    // the main loop that is listening to commands.
+    // every "print" statement uses the `colored` crate to add colors to the text.
     loop {
         println!();
-        read("Input the command: ", &mut buffer_a)?;
+        print!("{}", "Available commands: ".green().bold());
+        // print out all of the commands
+        commands.iter().for_each(|c| print!("{} ", c.blue().bold()));
+        println!();
+        // read the MAIN command into buffer_a
+        read(
+            &format!("{}", "Input the command: ".underline()),
+            &mut buffer_a,
+        )?;
 
+        // prettify the MAIN command
         let cmd = buffer_a.as_str().trim();
 
-        // NOTE exit
+        // check which command was given (before each block is the name of the command)
+        // CMD: exit
         if cmd == commands[0] {
-            println!("Finished Gracefully.");
+            println!("{}", "Finished Gracefully.".bold().green());
             break;
-            //
-            // NOTE refill
+
+            // CMD: refill
         } else if cmd == commands[1] {
-            println!("Filling the HashTable with 4 random values.");
-            hash_table.add_from_vec(gen_raw_data(4)).unwrap();
-            //
-            // NOTE add
+            println!("{}", "Filling the HashTable with 3 random values.".yellow());
+            let add_result = hash_table.add_from_vec(gen_raw_data(3));
+
+            match add_result {
+                Err(HashError::Collision) => {
+                    println!("{}", "Collision encountered, rehashing, try again.".red());
+                    let _ = hash_table.handle_collision();
+                }
+                _ => {}
+            }
+
+            // CMD: add
         } else if cmd == commands[2] {
+            // read the subcommand into buffer_b
             read(
-                "  Input Data (pattern: \"123456 12 name\"): ",
+                &format!(
+                    "{}",
+                    "  Input Data (pattern: \"123456 12 name\"): "
+                        .italic()
+                        .yellow()
+                ),
                 &mut buffer_b,
             )?;
 
             let (key, value): (&str, &str) = buffer_b.as_str().trim().split_once(' ').unwrap();
             let key: u32 = key.parse().unwrap();
 
-            hash_table.add(key, value.to_string()).unwrap();
+            let add_result = hash_table.add(key, value.to_string());
 
-            println!("Added {:?}={:?} successfully", key, value);
-            //
-            // NOTE remove
+            match add_result {
+                Ok(_) => println!(
+                    "{} {k:?}={v:?} {}",
+                    "Added".green(),
+                    "successfully".green(),
+                    k = key,
+                    v = value,
+                ),
+                Err(HashError::Collision) => {
+                    println!("{}", "Collision encountered, rehashing, try again.".red());
+                    hash_table.handle_collision().unwrap();
+                }
+                Err(e) => {
+                    println!("{} {:?}", "Error: ".red(), e);
+                }
+            }
+
+            // CMD: remove
         } else if cmd == commands[3] {
-            read("  Input Key (pattern: \"123456\"): ", &mut buffer_b)?;
+            // read the subcommand into buffer_b
+            read(
+                &format!(
+                    "{}",
+                    "  Input Key (pattern: \"123456\"): ".italic().yellow()
+                ),
+                &mut buffer_b,
+            )?;
 
             let key: u32 = buffer_b.as_str().trim().parse().unwrap();
 
             hash_table.remove(key).unwrap();
 
-            println!("Removed {:?} successfully", key);
-            //
-            // NOTE print
+            println!(
+                "{} {k:?} {}",
+                "Removed".green(),
+                "successfully".green(),
+                k = key
+            );
+
+            // CMD: print
         } else if cmd == commands[4] {
-            println!("HashTable: {:#?}", hash_table.entries);
-            //
-            // NOTE clear
+            println!("{} {:#?}", "HashTable:".yellow(), hash_table.entries);
+
+            // CMD: clear
         } else if cmd == commands[5] {
-            println!("Clearing the HashTable.");
+            println!("{}", "Clearing the HashTable.".yellow());
             hash_table = HashTable::new();
-            //
-            // error
+
+            // CMD: find
+        } else if cmd == commands[6] {
+            read(
+                &format!(
+                    "{}",
+                    "  Input Key (pattern: \"123456\"): ".italic().yellow()
+                ),
+                &mut buffer_b,
+            )?;
+
+            let key: u32 = buffer_b.as_str().trim().parse().unwrap();
+
+            match hash_table.find(key) {
+                Ok(found) => println!("{} {:?}", "Successfully found:".green(), found),
+                Err(error) => println!("{} {:#?}", "Element not found, E:".red(), error),
+            }
+
+            // CMD: error
         } else {
-            println!("E: unknown command: {:?}", buffer_a);
+            println!("{} {:?}", "E: unknown command:".red().bold(), buffer_a)
         }
     }
 
@@ -81,7 +153,7 @@ fn main() -> io::Result<()> {
 struct HashTable<K, V> {
     //{{{
     /// hash_key + (actual key + value)
-    entries: Vec<(u32, (K, V))>,
+    entries: Vec<(u32, K, V)>,
 
     hash_add: u32,
 } //}}}
@@ -94,12 +166,14 @@ enum HashError {
     DoesNotExist,
 } //}}}
 
-impl<K, V: Clone> HashTable<K, V>
+impl<K, V> HashTable<K, V>
 where
     u32: From<<K as std::ops::Add<u32>>::Output>,
     K: Copy + PartialEq + Into<u32> + std::ops::Add<u32> + std::fmt::Debug,
+    V: Clone + Deref + std::fmt::Debug,
 {
     //{{{ 123456 12 abc
+    const HASH_OFFSET: u32 = 7;
 
     fn new() -> Self {
         return Self {
@@ -117,11 +191,7 @@ where
     }
 
     fn get_keys(&self) -> Vec<K> {
-        self.entries
-            .clone()
-            .iter()
-            .map(|e| e.1 .0.clone())
-            .collect()
+        self.entries.clone().iter().map(|e| e.1.clone()).collect()
     }
 
     fn get_hashes(&self) -> Vec<u32> {
@@ -133,20 +203,25 @@ where
             return Err(HashError::AlreadyExists);
         }
 
-        let hashed = hash(key + self.hash_add);
+        let hashed = self.hash(key);
         if self.get_hashes().contains(&hashed) {
+            println!(
+                "prev: {:?}, next: {:?}",
+                self.entries.iter().find(|e| e.0 == hashed),
+                (key, value)
+            );
             return Err(HashError::Collision);
         }
 
         self.check_and_increase_capacity()?;
 
-        self.entries.push((hashed, (key, value)));
+        self.entries.push((hashed, key, value));
 
         Ok(())
     }
 
     fn remove(&mut self, key: K) -> Result<(), HashError> {
-        let hashed = hash(key + self.hash_add);
+        let hashed = self.hash(key);
 
         if !self.get_hashes().contains(&hashed) {
             return Err(HashError::DoesNotExist);
@@ -159,13 +234,36 @@ where
         Ok(())
     }
 
+    fn check_and_increase_capacity(&mut self) -> Result<(), HashError> {
+        if self.entries.len() as f32 / self.entries.capacity() as f32 > 0.75 {
+            self.entries.reserve(self.entries.len() * 2);
+            println!("Successfully increased capacity.");
+        }
+        Ok(())
+    }
+
+    fn find(&self, key: K) -> Result<V, HashError> {
+        let hashed = self.hash(key);
+
+        if !self.get_hashes().contains(&hashed) {
+            return Err(HashError::DoesNotExist);
+        }
+
+        return Ok(self
+            .entries
+            .iter()
+            .find(|e| e.0 == hashed && e.1 == key)
+            .unwrap()
+            .2
+            .clone());
+    }
+
     fn rehash(&mut self) -> Result<(), HashError> {
-        let raw_kv: Vec<(K, V)> = self.entries.iter().map(|e| e.1.clone()).collect();
+        let raw_kv: Vec<(K, V)> = self.entries.iter().map(|e| (e.1, e.2.clone())).collect();
         for key in self.get_keys() {
             self.remove(key)?;
         }
 
-        self.hash_add += 7;
         for (key, value) in raw_kv {
             self.add(key, value)?;
         }
@@ -173,13 +271,13 @@ where
         Ok(())
     }
 
-    fn check_and_increase_capacity(&mut self) -> Result<(), HashError> {
-        if self.entries.len() as f32 / self.entries.capacity() as f32 > 0.75 {
-            self.entries.reserve(self.entries.len() * 2);
-            self.rehash()?;
-            println!("Successfully increased capacity and rehashed.");
-        }
-        Ok(())
+    fn handle_collision(&mut self) -> Result<(), HashError> {
+        self.hash_add += HashTable::<K, V>::HASH_OFFSET;
+        self.rehash()
+    }
+
+    fn hash<T: Into<u32>>(&self, input: T) -> u32 {
+        return input.into() % self.entries.capacity() as u32 + self.hash_add;
     }
 } //}}}
 
@@ -206,7 +304,7 @@ fn gen_raw_data(num: usize) -> Vec<(u32, String)> {
     return raw_table;
 } //}}}
 
-fn hash<T: Into<u32>>(input: T) -> u32 {
+fn hash_rng<T: Into<u32>>(input: T) -> u32 {
     //{{{
     let mut state: u32 = input.into();
     state ^= 2747636419;
