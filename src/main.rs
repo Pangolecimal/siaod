@@ -7,6 +7,7 @@ use std::{
 };
 
 fn main() -> io::Result<()> {
+    //{{{
     // the PRIMARY command.
     let mut buffer_a = String::new();
     // the SECONDARY command.
@@ -64,11 +65,21 @@ fn main() -> io::Result<()> {
             let add_data = gen_random_data(n as usize);
 
             for entry in add_data {
-                let add_result = hash_table.add(entry.0, entry.1);
+                let add_result = hash_table.add(entry.0, entry.1.clone());
                 match add_result {
-                    Ok(()) => println!("{}", "Added Successfully".green()),
+                    Ok(()) => println!(
+                        "{}: {:?} @ {}",
+                        "Added Successfully".green(),
+                        entry.clone(),
+                        hash_table.entries.len()
+                    ),
                     Err(HashError::Collision) => {
-                        println!("{}", "Collision encountered, rehashing, try again.".red());
+                        println!(
+                            "{}: {:?} @ {}",
+                            "Collision encountered, rehashing, try again.".red(),
+                            entry.clone(),
+                            hash_table.entries.len()
+                        );
                         let _ = hash_table.rehash();
                     }
                     Err(e) => println!("what???: {:?}", e),
@@ -106,7 +117,7 @@ fn main() -> io::Result<()> {
                     hash_table.rehash().unwrap();
                 }
                 Err(e) => {
-                    println!("{} {:?}", "Error: ".red(), e);
+                    println!("{} {:?}", "E: ".red(), e);
                 }
             }
         } else if cmd == commands[3] {
@@ -170,35 +181,39 @@ fn main() -> io::Result<()> {
     }
 
     Ok(())
-}
+} //}}}
 
 /// Hash(u32) + Key(K) + Value(V)
 #[derive(Debug, Clone, PartialEq)]
 struct HashEntry<K, V> {
+    //{{{
     hash: u32,
     key: K,
     value: V,
-}
+} //}}}
 
 impl<K, V> HashEntry<K, V> {
+    //{{{
     fn new(hash: u32, key: K, value: V) -> Self {
         Self { hash, key, value }
     }
-}
+} //}}}
 
 #[derive(Debug)]
 struct HashTable<K, V> {
+    //{{{
     entries: Vec<HashEntry<K, V>>,
     hash_cap: u32,
     hash_add: u32,
-}
+} //}}}
 
 #[derive(Debug)]
 enum HashError {
+    //{{{
     Collision,
     AlreadyExists,
     DoesNotExist,
-}
+} //}}}
 
 impl<K, V> HashTable<K, V>
 where
@@ -206,6 +221,7 @@ where
     K: Copy + PartialEq + Into<u32> + std::ops::Add<u32> + std::fmt::Debug,
     V: Clone + PartialEq + Deref + std::fmt::Debug,
 {
+    //{{{
     const HASH_OFFSET: u32 = 3;
 
     fn new() -> Self {
@@ -226,9 +242,9 @@ where
     }
 
     fn add(&mut self, key: K, value: V) -> Result<(), HashError> {
-        // if self.get_keys().contains(&key) {
-        //     return Err(HashError::AlreadyExists);
-        // }
+        if self.get_keys().contains(&key) {
+            return Err(HashError::AlreadyExists);
+        }
 
         let hashed = self.hash(key);
         let collided = self.get_hashes().contains(&hashed);
@@ -236,10 +252,6 @@ where
         // add anyway
         self.entries.push(HashEntry::new(hashed, key, value));
         let _ = self.check_and_increase_capacity();
-
-        // HACK
-        self.entries
-            .sort_by(|a, b| a.hash.partial_cmp(&b.hash).unwrap());
 
         // if collision occured, return an error
         if collided {
@@ -282,27 +294,15 @@ where
         Ok(())
     }
 
-    fn check_and_increase_capacity(&mut self) -> Result<(), HashError> {
-        if self.entries.len() as f32 / self.entries.capacity() as f32 >= 0.75 {
-            self.entries.reserve(self.entries.capacity());
-            self.hash_cap = self.entries.capacity() as u32;
-            println!("Successfully increased capacity.");
-        }
-        Ok(())
-    }
-
     fn find(&self, key: K) -> Result<HashEntry<K, V>, HashError> {
         let hashed = self.hash(key);
-
-        if !self.get_hashes().contains(&hashed) {
-            return Err(HashError::DoesNotExist);
-        }
 
         // the possible amount of hits
         let possibilities = self.entries.iter().filter(|e| e.hash == hashed);
 
         match possibilities.clone().count() {
-            n if n == 1 => {
+            0 => Err(HashError::DoesNotExist),
+            1 => {
                 // after making sure that the key is present
                 return Ok(possibilities.collect::<Vec<&HashEntry<K, V>>>()[0].clone());
             }
@@ -312,30 +312,38 @@ where
 
                 // if it exists:
                 if let Some(entry) = maybe {
-                    return Ok(entry.clone());
+                    Ok(entry.clone())
+                } else {
+                    Err(HashError::DoesNotExist)
                 }
             }
             _ => unreachable!(),
         }
+    }
 
-        unreachable!();
+    fn check_and_increase_capacity(&mut self) -> Result<(), HashError> {
+        if self.entries.len() as f32 / self.entries.capacity() as f32 >= 0.75 {
+            self.entries.reserve(self.entries.capacity());
+            self.hash_cap = self.entries.capacity() as u32;
+            println!("Successfully increased capacity.");
+        }
+        Ok(())
     }
 
     fn rehash(&mut self) -> Result<(), HashError> {
-        // get the entries
-        let entries_temp = self.entries.clone();
-
-        // remove them
-        for key in self.get_keys() {
-            self.remove(key)?;
-        }
-
         // set new hash offset
         self.hash_add += Self::HASH_OFFSET;
 
-        // readd them
-        for he in entries_temp {
-            self.add(he.key, he.value)?;
+        let mut new_hashes: Vec<u32> = vec![];
+
+        // rehash the keys
+        for entry in self.entries.clone() {
+            new_hashes.push(self.hash(entry.key));
+        }
+
+        // mutate the original hashes
+        for (i, hash) in new_hashes.iter().enumerate() {
+            self.entries[i].hash = *hash;
         }
 
         Ok(())
@@ -346,9 +354,10 @@ where
         // return hash_prng(input.into() + self.hash_add);
         return (input.into() + self.hash_add) % self.hash_cap as u32;
     }
-}
+} //}}}
 
 fn gen_random_data(num: usize) -> Vec<(u32, String)> {
+    //{{{
     let mut keys: Vec<u32> = vec![];
     for i in 0..num {
         // 6-digits number
@@ -368,10 +377,11 @@ fn gen_random_data(num: usize) -> Vec<(u32, String)> {
     }
 
     return raw_table;
-}
+} //}}}
 
 /// actually good hashing function (technically a PRNG function) that is operating on 32 bits.
 fn hash_prng<T: Into<u32>>(input: T) -> u32 {
+    //{{{
     let mut state: u32 = input.into();
     state ^= 2747636419;
     state = state.overflowing_mul(2654435769).0;
@@ -380,9 +390,10 @@ fn hash_prng<T: Into<u32>>(input: T) -> u32 {
     state ^= state >> 16;
     state = state.overflowing_mul(2654435769).0;
     return state;
-}
+} //}}}
 
 fn read(msg: &str, buffer: &mut String) -> io::Result<()> {
+    //{{{
     print!("{msg}");
     let _ = io::stdout().flush();
 
@@ -390,4 +401,4 @@ fn read(msg: &str, buffer: &mut String) -> io::Result<()> {
     io::stdin().read_line(buffer)?;
 
     Ok(())
-}
+} //}}}
