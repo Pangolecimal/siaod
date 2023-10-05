@@ -146,7 +146,7 @@ fn main() -> io::Result<()> {
             // NOTE CMD: print
 
             println!(
-                "{} {:#?} {}",
+                "{} {:#?} @{}",
                 "HashTable:".yellow(),
                 hash_table,
                 hash_table.entries.len()
@@ -192,13 +192,6 @@ struct HashEntry<K, V> {
     value: V,
 } //}}}
 
-impl<K, V> HashEntry<K, V> {
-    //{{{
-    fn new(hash: u32, key: K, value: V) -> Self {
-        Self { hash, key, value }
-    }
-} //}}}
-
 #[derive(Debug)]
 struct HashTable<K, V> {
     //{{{
@@ -213,6 +206,13 @@ enum HashError {
     Collision,
     AlreadyExists,
     DoesNotExist,
+} //}}}
+
+impl<K, V> HashEntry<K, V> {
+    //{{{
+    fn new(hash: u32, key: K, value: V) -> Self {
+        Self { hash, key, value }
+    }
 } //}}}
 
 impl<K, V> HashTable<K, V>
@@ -241,6 +241,7 @@ where
         self.entries.clone().iter().map(|e| e.key.clone()).collect()
     }
 
+    // O(n) check + O(1) operation
     fn add(&mut self, key: K, value: V) -> Result<(), HashError> {
         if self.get_keys().contains(&key) {
             return Err(HashError::AlreadyExists);
@@ -261,22 +262,20 @@ where
         }
     }
 
-    // does not care if the queried key is in the collisions or normal entries.
+    // O(n) check + O(1) operation
     fn remove(&mut self, key: K) -> Result<(), HashError> {
         let hashed = self.hash(key);
-
-        if !self.get_hashes().contains(&hashed) {
-            return Err(HashError::DoesNotExist);
-        }
 
         // the possible amount of hits
         let possibilities = self.entries.iter().filter(|e| e.hash == hashed);
 
         match possibilities.clone().count() {
+            0 => Err(HashError::DoesNotExist),
             n if n == 1 => {
                 // after making sure that the key is present
                 let index = self.get_hashes().iter().position(|h| h == &hashed).unwrap();
                 self.entries.swap_remove(index);
+                Ok(())
             }
             n if n > 1 => {
                 // try to find it
@@ -286,14 +285,16 @@ where
                 if let Some(entry) = maybe {
                     let index = self.get_hashes().iter().position(|h| h == &hashed).unwrap();
                     self.entries.swap_remove(index);
+                    Ok(())
+                } else {
+                    Err(HashError::DoesNotExist)
                 }
             }
             _ => unreachable!(),
         }
-
-        Ok(())
     }
 
+    // O(n) because of possible collisions
     fn find(&self, key: K) -> Result<HashEntry<K, V>, HashError> {
         let hashed = self.hash(key);
 
@@ -350,9 +351,11 @@ where
     }
 
     fn hash<T: Into<u32>>(&self, input: T) -> u32 {
-        // `hash_prng` is better overall, but for showing the collissions the `A mod B` is better.
-        // return hash_prng(input.into() + self.hash_add);
-        return (input.into() + self.hash_add) % self.hash_cap as u32;
+        // collisions are avoidable/rehashable, but hard to encounter
+        // hash_prng(input.into() + self.hash_add)
+
+        // collisions are encounterable, but unavoidable
+        (input.into() + self.hash_add) % self.hash_cap as u32
     }
 } //}}}
 
@@ -379,7 +382,8 @@ fn gen_random_data(num: usize) -> Vec<(u32, String)> {
     return raw_table;
 } //}}}
 
-/// actually good hashing function (technically a PRNG function) that is operating on 32 bits.
+/// actually good hashing function (technically a PRNG function)
+/// that is operating on 32 bits.
 fn hash_prng<T: Into<u32>>(input: T) -> u32 {
     //{{{
     let mut state: u32 = input.into();
