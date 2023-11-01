@@ -55,6 +55,15 @@ func (n *Node) print() {
 	helper(n, "&: ", 0, " ")
 }
 
+func (n *Node) search_in_order(order_type string) {
+	switch order_type {
+	case "reverse":
+		//
+	case "symmetric":
+		//
+	}
+}
+
 func main() {
 	tree := &Node{data: "d"}
 	tree.insert("b")
