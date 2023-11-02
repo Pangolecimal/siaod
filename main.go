@@ -16,6 +16,9 @@ type Node struct {
 	right *Node
 }
 
+// create a function `insert` invokable on Node pointer
+//
+// func	(call_on) name(args) return_type
 func (n *Node) insert(data int) error {
 	if n == nil {
 		return errors.New("given Node n is nil")
@@ -47,6 +50,10 @@ func (n *Node) print() {
 		return
 	}
 
+	// literally a helper function that does all the work with recursion
+	//
+	// 'red'==name, 'yellow'==type ;;
+	// 'red, red' 'yellow' == 'red' 'yellow', 'red' 'yellow'
 	var helper func(n *Node, infix, prefix, indent string, last bool)
 	helper = func(n *Node, infix, prefix, indent string, last bool) {
 		if n == nil {
@@ -77,8 +84,9 @@ func (n *Node) print() {
 	println()
 }
 
+// in-order==симметрично ;; post-order==обратно
 func (n *Node) print_in_order(order_type string) {
-	var helper func(n *Node, ot string)
+	var helper func(n *Node, ot string) // ot==order_type
 	helper = func(n *Node, ot string) {
 		if n == nil {
 			return
@@ -101,6 +109,7 @@ func (n *Node) print_in_order(order_type string) {
 	println("-> E (" + order_type + ")")
 }
 
+// get distance to `data` from `root`
 func (n *Node) get_level_of(data int) int {
 	if n.data == data {
 		return 0
@@ -126,6 +135,7 @@ func (n *Node) get_level_of(data int) int {
 	return -1
 }
 
+// height of the tree
 func (n *Node) get_height() int {
 	if n == nil {
 		return 0
