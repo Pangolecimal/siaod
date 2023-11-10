@@ -2,20 +2,29 @@ const std = @import("std");
 const print = std.debug.print;
 
 pub const Graph = struct {
+    ///Maximum number of nodes
+    pub const NODE_AMOUNT = 32;
+
+    ///Filler for "empty" cells
+    pub const FILLER = std.math.maxInt(u32);
+
+    ///DEBUG
+    pub const ADJ_TYPE = [NODE_AMOUNT][NODE_AMOUNT]u32;
+
     ///INTERNAL
     allocator: std.mem.Allocator,
 
-    ///A list of all the nodes
+    ///Number of nodes
     node_count: u32,
 
     ///Adjacency Matrix of the graph
-    ///(currently of size <= 256x256, completely a skill issue)
-    adj: [256][256]u32,
+    ///(only of size NODE_AMOUNT×NODE_AMOUNT, ArrayList is hard == skill issue)
+    adj: ADJ_TYPE,
 
     pub fn init(allocator: std.mem.Allocator) !Graph {
         return Graph{
             .node_count = 0,
-            .adj = [_][256]u32{[_]u32{0} ** 256} ** 256,
+            .adj = [_][NODE_AMOUNT]u32{[_]u32{FILLER} ** NODE_AMOUNT} ** NODE_AMOUNT,
             .allocator = allocator,
         };
     }
@@ -29,15 +38,19 @@ pub const Graph = struct {
         self.adj[node_2_id][node_1_id] = weight;
     }
 
+    ///When i wrote this God and I knew what was going on.
+    ///Now only God knows...
     pub fn print_graph(self: Graph) !void {
         if (self.node_count == 0) @panic("Graph has 0 nodes");
 
-        const node_length = std.math.log10_int(self.node_count);
-        var max_len: u32 = @max(node_length, 0); // 3 because 256
+        // log base 10 floored
+        const log = std.math.log10_int;
+
+        const node_length = log(self.node_count);
+        var max_len: u32 = @max(node_length, log(@as(u32, NODE_AMOUNT)) + 1);
         for (&self.adj) |*row| {
             for (&row.*) |weight| {
-                if (weight <= 0) continue;
-                max_len = @max(max_len, std.math.log10_int(weight));
+                max_len = @max(max_len, if (weight == FILLER) max_len else log(weight));
             }
         }
 
@@ -47,8 +60,8 @@ pub const Graph = struct {
             if (i == 0) {
                 for (&row.*, 0..) |_, j| {
                     if (j > self.node_count) break;
-                    const pad_len: usize = max_len + 1 - if (j > 0) std.math.log10_int(j) else 0;
-                    const pad1_len: usize = node_length + 3 - if (i > 0) std.math.log10_int(i) else 0;
+                    const pad_len: usize = max_len - if (j > 0) log(j) else 0;
+                    const pad1_len: usize = node_length + 1 - if (i > 0) log(i) else 0;
 
                     var padding = try std.ArrayList(u8).initCapacity(self.allocator, pad_len);
                     defer padding.deinit();
@@ -58,11 +71,11 @@ pub const Graph = struct {
 
                     print("{s}{}", .{ padding.items, j });
                 }
-                print("\n\n", .{});
+                print("\n", .{});
             }
 
             {
-                const pad_len: usize = node_length + 1 - if (i > 0) std.math.log10_int(i) else 0;
+                const pad_len: usize = node_length - if (i > 0) log(i) else 0;
 
                 var padding = try std.ArrayList(u8).initCapacity(self.allocator, pad_len);
                 defer padding.deinit();
@@ -70,20 +83,31 @@ pub const Graph = struct {
                     try padding.append(' ');
                 }
 
-                print("{}:{s}", .{ i, padding.items });
+                print("{s}{}", .{ padding.items, i });
             }
 
             for (&row.*, 0..) |weight, j| {
                 if (j > self.node_count) break;
-                const pad_len: usize = max_len + 1 - if (weight > 0) std.math.log10_int(weight) else 0;
+                const pad_len: usize = max_len - if (weight != FILLER) log(weight) else 0;
 
                 var padding = try std.ArrayList(u8).initCapacity(self.allocator, pad_len);
                 defer padding.deinit();
                 for (0..pad_len) |_| {
-                    try padding.append(' ');
+                    try padding.appendSlice("─");
                 }
 
-                print("{s}{}", .{ padding.items, weight });
+                print("{s}", .{padding.items});
+
+                // ternary magic
+                var grid_intersection = if (i < self.node_count)
+                    if (j < self.node_count) "┼" else "┤"
+                else if (j == self.node_count) "┘" else "┴";
+
+                if (weight == FILLER) {
+                    print("{s}", .{grid_intersection});
+                } else {
+                    print("{}", .{weight});
+                } //×
             }
             print("\n", .{});
         }

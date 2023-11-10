@@ -2,6 +2,9 @@ const std = @import("std");
 const print = std.debug.print;
 
 const Graph = @import("Graph.zig").Graph;
+const Path = @import("BFS.zig").Path;
+
+const bfs = @import("BFS.zig").bfs;
 const yen = @import("Yen.zig");
 
 pub fn main() !void {
@@ -12,52 +15,24 @@ pub fn main() !void {
     var graph = try Graph.init(allocator);
     // defer graph.deinit();
 
-    try graph.add_node();
-    try graph.add_node();
-    try graph.add_node();
+    for (1..10) |_| try graph.add_node();
     try graph.add_edge(0, 1, 1);
     try graph.add_edge(1, 2, 2);
 
     try graph.print_graph();
 
-    const paths = try yen.yen(graph, 0, 2, 3);
-    for (paths.items) |*path| {
-        print("Path: ", .{});
-        for (path.nodes.items) |node| {
-            print("{} ", .{node});
-        }
-        print("\n", .{});
-    }
+    _ = try bfs(graph, 0, 1);
 
-    //############
+    print("\n", .{});
 
-    //
-    // var G = try Graph.init(allocator);
-    // // adds N nodes
-    // for (1..20) |_| {
-    //     try G.add_node();
+    // const paths = try yen.yen(graph, 0, 2, 3);
+    // for (paths.items) |*path| {
+    //     print("Path: ", .{});
+    //     for (path.nodes.items) |node| {
+    //         print("{} ", .{node});
+    //     }
+    //     print("\n", .{});
     // }
-    // try G.add_edge(0, 2, 100);
-    // try G.add_edge(2, 6, 200);
-    // try G.add_edge(18, 19, 1000);
-    // try G.print_graph();
-
-    //##########
-
-    // // Add nodes
-    // try graph.add_node(1);
-    // try graph.add_node(2);
-    // try graph.add_node(3);
-    // try graph.add_node(4);
-    //
-    // // Add edges
-    // try graph.add_edge(0, 1, 5);
-    // try graph.add_edge(1, 2, 3);
-    // try graph.add_edge(2, 3, 7);
-    // try graph.add_edge(3, 0, 2);
-    //
-    // // Print graph
-    // graph.print();
 }
 
 // Graph 7:
