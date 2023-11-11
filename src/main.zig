@@ -21,7 +21,7 @@ pub fn main() !void {
 
     try graph.print_graph();
 
-    _ = try bfs(graph, 0, 1);
+    _ = try bfs(graph, 0, 1, allocator);
 
     print("\n", .{});
 
