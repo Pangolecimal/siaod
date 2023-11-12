@@ -1,14 +1,15 @@
 const std = @import("std");
-const print = std.debug.print;
+const log = std.debug.print;
 
 pub const Graph = struct {
     ///Maximum number of nodes
-    pub const NODE_AMOUNT = 32;
+    pub const NODE_AMOUNT = 16;
 
     ///Filler for "empty" cells
     pub const FILLER = std.math.maxInt(u32);
+    pub const FILLER_ROW: [NODE_AMOUNT]u32 = [_]u32{FILLER} ** NODE_AMOUNT;
 
-    ///DEBUG
+    ///DEBUG (not in production irreversably)
     pub const ADJ_TYPE = [NODE_AMOUNT][NODE_AMOUNT]u32;
 
     ///INTERNAL
@@ -38,19 +39,40 @@ pub const Graph = struct {
         self.adj[node_2_id][node_1_id] = weight;
     }
 
+    pub fn neighbors(self: Graph, node_id: u32) !std.ArrayList(u32) {
+        var result = std.ArrayList(u32).init(self.allocator);
+        defer result.deinit();
+
+        for (self.adj[node_id], 0..) |weight, i| {
+            if (weight != Graph.FILLER) {
+                try result.append(@truncate(i));
+            }
+        }
+
+        return result.clone();
+    }
+
     ///When i wrote this God and I knew what was going on.
     ///Now only God knows...
-    pub fn print_graph(self: Graph) !void {
-        if (self.node_count == 0) @panic("Graph has 0 nodes");
+    pub fn format(
+        self: Graph,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        _ = fmt;
+        _ = options;
+        if (self.node_count == 0) @panic("Graph has no nodes");
+        try writer.print("\n", .{});
 
         // log base 10 floored
-        const log = std.math.log10_int;
+        const log10 = std.math.log10_int;
 
-        const node_length = log(self.node_count);
-        var max_len: u32 = @max(node_length, log(@as(u32, NODE_AMOUNT)) + 1);
+        const node_length = log10(self.node_count);
+        var max_len: u32 = @max(node_length, log10(@as(u32, NODE_AMOUNT)) + 1);
         for (&self.adj) |*row| {
             for (&row.*) |weight| {
-                max_len = @max(max_len, if (weight == FILLER) max_len else log(weight));
+                max_len = @max(max_len, if (weight == FILLER) max_len else log10(weight));
             }
         }
 
@@ -60,43 +82,35 @@ pub const Graph = struct {
             if (i == 0) {
                 for (&row.*, 0..) |_, j| {
                     if (j > self.node_count) break;
-                    const pad_len: usize = max_len - if (j > 0) log(j) else 0;
-                    const pad1_len: usize = node_length + 1 - if (i > 0) log(i) else 0;
+                    const pad_len: usize = max_len - if (j > 0) log10(j) else 0;
+                    const pad1_len: usize = node_length + 3 - if (i > 0) log10(i) else 0;
 
-                    var padding = try std.ArrayList(u8).initCapacity(self.allocator, pad_len);
-                    defer padding.deinit();
                     for (0..pad_len + if (j == 0) pad1_len else 0) |_| {
-                        try padding.append(' ');
+                        try writer.print(" ", .{});
                     }
 
-                    print("{s}{}", .{ padding.items, j });
+                    try writer.print("{}", .{j});
                 }
-                print("\n", .{});
+                try writer.print("\n", .{});
             }
 
             {
-                const pad_len: usize = node_length - if (i > 0) log(i) else 0;
+                const pad_len: usize = node_length + 2 - if (i > 0) log10(i) else 0;
 
-                var padding = try std.ArrayList(u8).initCapacity(self.allocator, pad_len);
-                defer padding.deinit();
                 for (0..pad_len) |_| {
-                    try padding.append(' ');
+                    try writer.print(" ", .{});
                 }
 
-                print("{s}{}", .{ padding.items, i });
+                try writer.print("{}", .{i});
             }
 
             for (&row.*, 0..) |weight, j| {
                 if (j > self.node_count) break;
-                const pad_len: usize = max_len - if (weight != FILLER) log(weight) else 0;
+                const pad_len: usize = max_len - if (weight != FILLER) log10(weight) else 0;
 
-                var padding = try std.ArrayList(u8).initCapacity(self.allocator, pad_len);
-                defer padding.deinit();
                 for (0..pad_len) |_| {
-                    try padding.appendSlice("─");
+                    try writer.print("─", .{});
                 }
-
-                print("{s}", .{padding.items});
 
                 // ternary magic
                 var grid_intersection = if (i < self.node_count)
@@ -104,13 +118,13 @@ pub const Graph = struct {
                 else if (j == self.node_count) "┘" else "┴";
 
                 if (weight == FILLER) {
-                    print("{s}", .{grid_intersection});
+                    try writer.print("{s}", .{grid_intersection});
                 } else {
-                    print("{}", .{weight});
-                } //×
+                    try writer.print("{}", .{weight});
+                }
             }
-            print("\n", .{});
+            try writer.print("\n", .{});
         }
-        print("\n\n", .{});
+        try writer.print("\n\n", .{});
     }
 };

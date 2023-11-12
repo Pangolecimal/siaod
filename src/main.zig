@@ -1,11 +1,11 @@
 const std = @import("std");
-const print = std.debug.print;
+const log = std.debug.print;
 
 const Graph = @import("Graph.zig").Graph;
 const Path = @import("BFS.zig").Path;
 
 const bfs = @import("BFS.zig").bfs;
-const yen = @import("Yen.zig");
+const yen = @import("Yen.zig").yen;
 
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -15,23 +15,23 @@ pub fn main() !void {
     var graph = try Graph.init(allocator);
     // defer graph.deinit();
 
-    for (1..10) |_| try graph.add_node();
+    for (1..5) |_| try graph.add_node();
     try graph.add_edge(0, 1, 1);
     try graph.add_edge(1, 2, 2);
+    try graph.add_edge(1, 3, 3);
+    try graph.add_edge(2, 4, 4);
+    try graph.add_edge(2, 5, 6);
+    try graph.add_edge(3, 4, 5);
+    try graph.add_edge(4, 5, 7);
 
-    try graph.print_graph();
+    log("{}", .{graph});
+    log("bfs: {any}", .{bfs(graph, 0, 3)});
+    log("\n", .{});
 
-    _ = try bfs(graph, 0, 1, allocator);
-
-    print("\n", .{});
-
-    // const paths = try yen.yen(graph, 0, 2, 3);
-    // for (paths.items) |*path| {
-    //     print("Path: ", .{});
-    //     for (path.nodes.items) |node| {
-    //         print("{} ", .{node});
-    //     }
-    //     print("\n", .{});
+    // var ksp = try yen(graph, 0, 3, 3);
+    // log("\nksp: {any}\n\n", .{ksp});
+    // for (ksp.items) |path| {
+    //     log("YEN: {}\n", .{path});
     // }
 }
 
