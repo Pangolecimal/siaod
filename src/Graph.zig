@@ -3,11 +3,10 @@ const log = std.debug.print;
 
 pub const Graph = struct {
     ///Maximum number of nodes
-    pub const NODE_AMOUNT = 16;
+    pub const NODE_AMOUNT = 256;
 
     ///Filler for "empty" cells
     pub const FILLER = std.math.maxInt(u32);
-    pub const FILLER_ROW: [NODE_AMOUNT]u32 = [_]u32{FILLER} ** NODE_AMOUNT;
 
     ///DEBUG (not in production irreversably)
     pub const ADJ_TYPE = [NODE_AMOUNT][NODE_AMOUNT]u32;
@@ -77,15 +76,16 @@ pub const Graph = struct {
         }
 
         for (&self.adj, 0..) |*row, i| {
+            if (i == 0) continue;
             if (i > self.node_count) break;
 
-            if (i == 0) {
-                for (&row.*, 0..) |_, j| {
+            if (i == 1) {
+                for (&row.*, 1..) |_, j| {
                     if (j > self.node_count) break;
                     const pad_len: usize = max_len - if (j > 0) log10(j) else 0;
                     const pad1_len: usize = node_length + 3 - if (i > 0) log10(i) else 0;
 
-                    for (0..pad_len + if (j == 0) pad1_len else 0) |_| {
+                    for (0..pad_len + if (j == 1) pad1_len else 0) |_| {
                         try writer.print(" ", .{});
                     }
 
@@ -105,6 +105,7 @@ pub const Graph = struct {
             }
 
             for (&row.*, 0..) |weight, j| {
+                if (j == 0) continue;
                 if (j > self.node_count) break;
                 const pad_len: usize = max_len - if (weight != FILLER) log10(weight) else 0;
 

@@ -4,9 +4,10 @@ const Graph = @import("Graph.zig").Graph;
 
 pub const Path = struct {
     nodes: [Graph.NODE_AMOUNT]u32,
+    adj: Graph.ADJ_TYPE,
 
-    pub fn init() Path {
-        return Path{ .nodes = [_]u32{Graph.FILLER} ** Graph.NODE_AMOUNT };
+    pub fn init(adj: Graph.ADJ_TYPE) Path {
+        return Path{ .nodes = [_]u32{Graph.FILLER} ** Graph.NODE_AMOUNT, .adj = adj };
     }
 
     pub fn append(self: *Path, node: u32) !void {
@@ -42,7 +43,7 @@ pub const Path = struct {
     }
 
     pub fn clone(self: Path) !Path {
-        var p = Path.init();
+        var p = Path.init(self.adj);
         for (self.nodes) |n| {
             if (n != Graph.FILLER) try p.append(n);
         }
@@ -57,13 +58,13 @@ pub const Path = struct {
         return result;
     }
 
-    pub fn get_cost(self: Path, adj: Graph.ADJ_TYPE) u32 {
+    pub fn get_cost(self: Path) u32 {
         var cost: u32 = 0;
         if (self.len() < 2) return 0;
         for (0..self.len() - 1) |i| {
             var curr = self.nodes[i];
             var next = self.nodes[i + 1];
-            var weight = adj[curr][next];
+            var weight = self.adj[curr][next];
             cost += weight;
         }
         return cost;
@@ -88,19 +89,20 @@ pub const Path = struct {
 
         try writer.print("Path: [", .{});
 
-        if (self.nodes.len > 0)
+        if (self.len() > 0)
             for (self.nodes) |n|
-                if (n == Graph.FILLER)
-                    try writer.print("× ", .{})
-                else
+                if (n != Graph.FILLER)
                     try writer.print("{} ", .{n});
+        // else
+        //     try writer.print("×", .{});
 
-        try writer.writeAll("]");
+        try writer.print("] Cost: {}", .{self.get_cost()});
+        try writer.writeAll("");
     }
 };
 
 /// Breadth-First Search
-pub fn bfs(graph: Graph, source: u32, target: u32) !Path {
+pub fn bfs(graph: Graph, source: u32, target: u32) !std.ArrayList(Path) {
     const AL = std.ArrayList;
 
     var queue: AL(Path) = AL(Path).init(graph.allocator);
@@ -109,17 +111,11 @@ pub fn bfs(graph: Graph, source: u32, target: u32) !Path {
     var found: AL(Path) = AL(Path).init(graph.allocator);
     defer found.deinit();
 
-    var first: Path = Path.init();
+    var first: Path = Path.init(graph.adj);
     try first.append(source);
     try queue.append(first);
 
     while (queue.items.len > 0) {
-        // log("QUEUE:", .{});
-        // for (queue.items) |path| {
-        //     log(" {}", .{path});
-        // }
-        // log("\n", .{});
-
         var c_path: Path = queue.pop(); // current path
 
         // current node (last entry of current path)
@@ -129,8 +125,6 @@ pub fn bfs(graph: Graph, source: u32, target: u32) !Path {
         } else {
             continue; // path tried every node // impossible?
         }
-
-        // log("\nFUCK\n\nQUEUE: {any}\n\nC_PATH: {}\n\nC_NODE: {}\n", .{ queue, c_path, c_node });
 
         // target is found
         if (c_node == target) {
@@ -147,7 +141,6 @@ pub fn bfs(graph: Graph, source: u32, target: u32) !Path {
             if (c_path.contains(n)) continue;
 
             var new_path = try c_path.clone();
-            // log("\n  NEW PATH: {}    CURRENT PATH: {}\n\n", .{ new_path, c_path });
             try new_path.append(n);
             try queue.append(new_path);
         }
@@ -155,20 +148,15 @@ pub fn bfs(graph: Graph, source: u32, target: u32) !Path {
 
     if (found.items.len == 0) return error.NotFound;
 
-    // loop over `found` and return one with the lowest cost
-    var min_cost: u32 = std.math.maxInt(u32);
-    var min_cost_index: u32 = 0;
-    for (found.items, 0..) |path, i| {
-        var cost = path.get_cost(graph.adj);
-        if (min_cost > cost) {
-            min_cost = cost;
-            min_cost_index = @truncate(i);
+    for (1..found.items.len) |i| {
+        const key = found.items[i];
+        var j: isize = @intCast(i);
+        j -= 1;
+        while (j >= 0 and key.get_cost() < found.items[@intCast(j)].get_cost()) : (j -= 1) {
+            found.items[@intCast(j + 1)] = found.items[@intCast(j)];
         }
+        found.items[@intCast(j + 1)] = key;
     }
 
-    log("BFS has found paths:\n", .{});
-    for (found.items) |path| log("  {}\n", .{path});
-    log("\n", .{});
-
-    return found.items[min_cost_index];
+    return found.clone();
 }

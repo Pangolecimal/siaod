@@ -1,5 +1,6 @@
 const std = @import("std");
 const log = std.debug.print;
+const eql = std.mem.eql;
 
 const Graph = @import("Graph.zig").Graph;
 const Path = @import("BFS.zig").Path;
@@ -12,27 +13,137 @@ pub fn main() !void {
     defer arena.deinit();
     var allocator = arena.allocator();
 
+    const stdout = std.io.getStdOut();
+    const stdin = std.io.getStdIn();
+    var buffer: [64]u8 = undefined;
+    var mode: usize = 0;
+
+    try stdout.writeAll("Input the creation mode ([m]anual or [a]utomatic): ");
+    const input_mode = (try nextLine(stdin.reader(), &buffer)).?;
+
+    if (eql(u8, input_mode, "m")) {
+        try stdout.writeAll("  Manual Mode.\n\n");
+        mode = 1;
+    } else if (eql(u8, input_mode, "a")) {
+        try stdout.writeAll("  Automatic Mode.\n\n");
+        mode = 2;
+    } else {
+        try stdout.writeAll("  Invalid.\n\n");
+        @panic("INVALID INPUT MODE");
+    }
+
     var graph = try Graph.init(allocator);
-    // defer graph.deinit();
+    switch (mode) {
+        1 => {
+            // Manual
+            try stdout.writeAll("  Input the number of nodes: ");
+            const input_num_nodes = (try nextLine(stdin.reader(), &buffer)).?;
+            const num_nodes = try std.fmt.parseUnsigned(u32, input_num_nodes, 10);
+            for (0..num_nodes) |_| try graph.add_node();
 
-    for (1..5) |_| try graph.add_node();
-    try graph.add_edge(0, 1, 1);
-    try graph.add_edge(1, 2, 2);
-    try graph.add_edge(1, 3, 3);
-    try graph.add_edge(2, 4, 4);
-    try graph.add_edge(2, 5, 6);
-    try graph.add_edge(3, 4, 5);
-    try graph.add_edge(4, 5, 7);
+            while (true) {
+                try stdout.writeAll("  Input an edge ([source target weight] or [e]xit): ");
+                const input_edge = (try nextLine(stdin.reader(), &buffer)).?;
+                if (eql(u8, input_edge, "e")) break;
 
-    log("{}", .{graph});
-    log("bfs: {any}", .{bfs(graph, 0, 3)});
+                var num_spaces: u32 = 0;
+                for (input_edge) |ch| {
+                    if (ch == ' ') num_spaces += 1;
+                }
+                if (num_spaces != 2) {
+                    try stdout.writer().print(
+                        "E: INVALID EDGE FORMAT (EXPECTED: `source target weight` GOT: {s})\n\n",
+                        .{input_edge},
+                    );
+                    continue;
+                }
+
+                var iter = std.mem.split(u8, input_edge, " ");
+                const source = try std.fmt.parseUnsigned(u32, iter.next().?, 10);
+                const target = try std.fmt.parseUnsigned(u32, iter.next().?, 10);
+                const weight = try std.fmt.parseUnsigned(u32, iter.next().?, 10);
+
+                if (source > num_nodes) {
+                    try stdout.writer().print(
+                        "E: INVALID NODE NUMBER ({} is bigger than {})\n\n",
+                        .{ source, num_nodes },
+                    );
+                    continue;
+                }
+                if (target > num_nodes) {
+                    try stdout.writer().print(
+                        "E: INVALID NODE NUMBER ({} is bigger than {})\n\n",
+                        .{ target, num_nodes },
+                    );
+                    continue;
+                }
+
+                try graph.add_edge(source, target, weight);
+                try stdout.writer().print("    Successfully added an edge {} between {} and {}\n\n", .{ weight, source, target });
+            }
+        },
+        2 => {
+            // Automatic
+            for (1..9) |_| try graph.add_node();
+            try graph.add_edge(1, 2, 23);
+            try graph.add_edge(1, 3, 12);
+            try graph.add_edge(2, 3, 25);
+            try graph.add_edge(2, 5, 22);
+            try graph.add_edge(2, 8, 35);
+            try graph.add_edge(3, 4, 18);
+            try graph.add_edge(4, 6, 20);
+            try graph.add_edge(5, 6, 23);
+            try graph.add_edge(5, 7, 14);
+            try graph.add_edge(6, 7, 24);
+            try graph.add_edge(7, 8, 16);
+        },
+        else => {
+            try stdout.writeAll("  What the hell are ya doin?\n");
+            unreachable;
+        },
+    }
+
+    // input source, target and K
+    try stdout.writeAll("  Input the SOURCE node: ");
+    const input_source = (try nextLine(stdin.reader(), &buffer)).?;
+    const source = try std.fmt.parseUnsigned(u32, input_source, 10);
+
+    try stdout.writeAll("  Input the TARGET node: ");
+    const input_target = (try nextLine(stdin.reader(), &buffer)).?;
+    const target = try std.fmt.parseUnsigned(u32, input_target, 10);
+
+    try stdout.writeAll("  Input K (amount of paths): ");
+    const input_K = (try nextLine(stdin.reader(), &buffer)).?;
+    const K = try std.fmt.parseUnsigned(u32, input_K, 10);
+
+    log("\nGraph's Adjacency Matrix:{}", .{graph});
+    log("Found:\n", .{});
+    var bfs_result = bfs(graph, source, target) catch null;
+    if (bfs_result != null) for (bfs_result.?.items, 0..) |path, i| {
+        if (i < K) log("  {}\n", .{path});
+    };
     log("\n", .{});
 
-    // var ksp = try yen(graph, 0, 3, 3);
-    // log("\nksp: {any}\n\n", .{ksp});
+    // // never got it working, idk why. wiki pseudo code has failed me once again.
+    // var ksp = try yen(graph, 1, 8, 2);
+    // // log("\nksp: {any}\n\n", .{ksp});
+    // log("YEN found:\n", .{});
     // for (ksp.items) |path| {
-    //     log("YEN: {}\n", .{path});
+    //     log("  {}\n", .{path});
     // }
+}
+
+fn nextLine(reader: anytype, buffer: []u8) !?[]const u8 {
+    var line = (try reader.readUntilDelimiterOrEof(
+        buffer,
+        '\n',
+    )) orelse return null;
+    // trim annoying windows-only carriage return character
+    if (@import("builtin").os.tag == .windows) {
+        return std.mem.trimRight(u8, line, "\r");
+    } else {
+        return line;
+    }
 }
 
 // Graph 7:
