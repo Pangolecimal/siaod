@@ -22,13 +22,13 @@ pub fn main() !void {
     const input_mode = (try nextLine(stdin.reader(), &buffer)).?;
 
     if (eql(u8, input_mode, "m")) {
-        try stdout.writeAll("  Manual Mode.\n\n");
+        try stdout.writeAll("  Manual Mode.\n");
         mode = 1;
     } else if (eql(u8, input_mode, "a")) {
-        try stdout.writeAll("  Automatic Mode.\n\n");
+        try stdout.writeAll("  Automatic Mode.\n");
         mode = 2;
     } else {
-        try stdout.writeAll("  Invalid.\n\n");
+        try stdout.writeAll("  Invalid.\n");
         @panic("INVALID INPUT MODE");
     }
 
@@ -103,26 +103,27 @@ pub fn main() !void {
         },
     }
 
+    log("\nGraph's Adjacency Matrix:{}", .{graph});
+
     // input source, target and K
-    try stdout.writeAll("  Input the SOURCE node: ");
+    try stdout.writer().print("Input the SOURCE node (1..{}): ", .{graph.node_count});
     const input_source = (try nextLine(stdin.reader(), &buffer)).?;
     const source = try std.fmt.parseUnsigned(u32, input_source, 10);
 
-    try stdout.writeAll("  Input the TARGET node: ");
+    try stdout.writer().print("Input the TARGET node (1..{}): ", .{graph.node_count});
     const input_target = (try nextLine(stdin.reader(), &buffer)).?;
     const target = try std.fmt.parseUnsigned(u32, input_target, 10);
 
-    try stdout.writeAll("  Input K (amount of paths): ");
+    try stdout.writeAll("Input K (amount of shortest paths to find): ");
     const input_K = (try nextLine(stdin.reader(), &buffer)).?;
     const K = try std.fmt.parseUnsigned(u32, input_K, 10);
 
-    log("\nGraph's Adjacency Matrix:{}", .{graph});
-    log("Found:\n", .{});
-    var bfs_result = bfs(graph, source, target) catch null;
-    if (bfs_result != null) for (bfs_result.?.items, 0..) |path, i| {
-        if (i < K) log("  {}\n", .{path});
+    try stdout.writer().print("\nFound:\n", .{});
+    var result = bfs(graph, source, target) catch null;
+    if (result != null) for (result.?.items, 0..) |path, i| {
+        if (i < K) try stdout.writer().print("  {}\n", .{path});
     };
-    log("\n", .{});
+    try stdout.writer().print("\n", .{});
 
     // // never got it working, idk why. wiki pseudo code has failed me once again.
     // var ksp = try yen(graph, 1, 8, 2);

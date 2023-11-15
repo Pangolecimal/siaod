@@ -4,21 +4,17 @@ const log = std.debug.print;
 pub const Graph = struct {
     ///Maximum number of nodes
     pub const NODE_AMOUNT = 256;
-
-    ///Filler for "empty" cells
+    ///Filler to indicate "empty" cells
     pub const FILLER = std.math.maxInt(u32);
-
-    ///DEBUG (not in production irreversably)
+    ///Type of the adjacency matrix
     pub const ADJ_TYPE = [NODE_AMOUNT][NODE_AMOUNT]u32;
 
     ///INTERNAL
     allocator: std.mem.Allocator,
-
     ///Number of nodes
     node_count: u32,
-
     ///Adjacency Matrix of the graph
-    ///(only of size NODE_AMOUNT×NODE_AMOUNT, ArrayList is hard == skill issue)
+    ///(only of size NODE_AMOUNT×NODE_AMOUNT, skill issue)
     adj: ADJ_TYPE,
 
     pub fn init(allocator: std.mem.Allocator) !Graph {
@@ -38,15 +34,14 @@ pub const Graph = struct {
         self.adj[node_2_id][node_1_id] = weight;
     }
 
+    /// returns the list of all neighbouring nodes
     pub fn neighbors(self: Graph, node_id: u32) !std.ArrayList(u32) {
         var result = std.ArrayList(u32).init(self.allocator);
         defer result.deinit();
 
-        for (self.adj[node_id], 0..) |weight, i| {
-            if (weight != Graph.FILLER) {
+        for (self.adj[node_id], 0..) |weight, i|
+            if (weight != Graph.FILLER)
                 try result.append(@truncate(i));
-            }
-        }
 
         return result.clone();
     }

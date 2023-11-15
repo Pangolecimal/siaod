@@ -8,7 +8,6 @@ const bfs = @import("BFS.zig").bfs;
 pub fn yen(graph: Graph, source: u32, target: u32, K: u32) !std.ArrayList(Path) {
     var A: std.ArrayList(Path) = std.ArrayList(Path).init(graph.allocator);
     defer A.deinit();
-
     var B: std.ArrayList(Path) = std.ArrayList(Path).init(graph.allocator);
     defer B.deinit();
 
@@ -19,12 +18,9 @@ pub fn yen(graph: Graph, source: u32, target: u32, K: u32) !std.ArrayList(Path) 
     for (1..K) |k| {
         // The spur node ranges from the first node to the next to last node in the previous k-shortest path.
         var path = A.items[k - 1];
-        // log("____----START OF {} / {}:\n\n\npath: {}\n\n", .{ k, K, path });
 
         for (0..path.len() - 2) |i| {
-            // log("____START OF {} / {}:\n", .{ i, path.len() - 2 });
-            // Cloned graph
-            var c_graph = graph;
+            var c_graph = graph; // Cloned graph
 
             // Spur node is retrieved from the previous k-shortest path, k − 1.
             var spur_node = path.nodes[i];
@@ -32,16 +28,11 @@ pub fn yen(graph: Graph, source: u32, target: u32, K: u32) !std.ArrayList(Path) 
             // The sequence of nodes from the source to the spur node of the previous k-shortest path.
             var root_path = path.nodes[0..i];
 
-            // log("ROOT_PATH: {any}   SPUR_NODE: {}\n\n", .{ root_path, spur_node });
-
             for (A.items) |p| {
                 if (!std.mem.eql(u32, root_path, p.nodes[0..i])) continue;
-
                 // Remove the links that are part of the previous shortest paths which share the same root path.
                 c_graph.adj[i][i + 1] = Graph.FILLER;
             }
-
-            // log("GRAPH: {}", .{c_graph});
 
             // Calculate the spur path from the spur node to the sink.
             // Consider also checking if any spurPath found
@@ -52,7 +43,6 @@ pub fn yen(graph: Graph, source: u32, target: u32, K: u32) !std.ArrayList(Path) 
             for (root_path) |n| try total_path.append(n);
             for (spur_path.nodes) |n| try total_path.append(n);
 
-            // log("HAHA {}\n", .{total_path});
             // Add the potential k-shortest path to the heap.
             var exists = for (B.items) |p| {
                 if (total_path.equal(p)) break true;
@@ -66,18 +56,9 @@ pub fn yen(graph: Graph, source: u32, target: u32, K: u32) !std.ArrayList(Path) 
         // or there are no spur paths at all - such as when both the source and sink vertices
         // lie along a "dead end".
         if (B.items.len == 0) break;
-
-        // Sort B by decreasing order of path cost
-        sort(B);
-
-        // log("AAAAAAAAAAAA: {any}\n\n", .{B});
-
-        // Add the lowest cost path in B to A
-        // log("1:\nA: {any}\n\nB: {any}\n\n\n", .{ A.items, B.items });
-        try A.append(B.pop());
-        // log("2:\nA: {any}\n\nB: {any}\n\n\n", .{ A.items, B.items });
+        sort(B); // Sort B by decreasing order of path cost
+        try A.append(B.pop()); // Add the lowest cost path in B to A
     }
-
     return A.clone();
 }
 

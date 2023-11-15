@@ -3,13 +3,16 @@ const log = std.debug.print;
 const Graph = @import("Graph.zig").Graph;
 
 pub const Path = struct {
+    ///Static array of nodes
     nodes: [Graph.NODE_AMOUNT]u32,
+    ///Reference to the Graph's adjacency matrix
     adj: Graph.ADJ_TYPE,
 
     pub fn init(adj: Graph.ADJ_TYPE) Path {
         return Path{ .nodes = [_]u32{Graph.FILLER} ** Graph.NODE_AMOUNT, .adj = adj };
     }
 
+    ///Adds the given node to the end
     pub fn append(self: *Path, node: u32) !void {
         if (node == Graph.FILLER) return;
         for (0..Graph.NODE_AMOUNT) |i| {
@@ -20,7 +23,7 @@ pub const Path = struct {
             return;
         }
     }
-
+    ///Checks whether a given node is in this path
     pub fn contains(self: Path, node: u32) bool {
         for (self.nodes) |n| {
             if (n == node) return true;
@@ -28,6 +31,7 @@ pub const Path = struct {
         return false;
     }
 
+    ///Returns the last node in `nodes`
     pub fn get_last(self: Path) ?u32 {
         var last_index: i32 = 0;
         for (self.nodes) |n| {
@@ -42,14 +46,14 @@ pub const Path = struct {
         return if (last_index < Graph.NODE_AMOUNT) self.nodes[idx] else null;
     }
 
+    ///Returns a new Path that is identical to this
     pub fn clone(self: Path) !Path {
         var p = Path.init(self.adj);
-        for (self.nodes) |n| {
+        for (self.nodes) |n|
             if (n != Graph.FILLER) try p.append(n);
-        }
         return p;
     }
-
+    ///Returns the length of the path
     pub fn len(self: Path) u32 {
         var result: u32 = 0;
         for (self.nodes) |n| {
@@ -58,6 +62,7 @@ pub const Path = struct {
         return result;
     }
 
+    ///Calculates the cost of the path
     pub fn get_cost(self: Path) u32 {
         var cost: u32 = 0;
         if (self.len() < 2) return 0;
@@ -70,11 +75,11 @@ pub const Path = struct {
         return cost;
     }
 
+    ///Equality check between two paths
     pub fn equal(self: Path, other: Path) bool {
         if (self.len() != other.len()) return false;
-        for (self.nodes, 0..) |n, i| {
+        for (self.nodes, 0..) |n, i|
             if (n != other.nodes[i]) return false;
-        }
         return true;
     }
 
@@ -87,14 +92,20 @@ pub const Path = struct {
         _ = fmt;
         _ = options;
 
-        try writer.print("Path: [", .{});
+        try writer.print("Path: [ ", .{});
 
-        if (self.len() > 0)
-            for (self.nodes) |n|
-                if (n != Graph.FILLER)
+        if (self.len() > 0) {
+            for (self.nodes, 0..) |n, i| {
+                if (n != Graph.FILLER) {
                     try writer.print("{} ", .{n});
-        // else
-        //     try writer.print("×", .{});
+
+                    if (i < self.len() - 1)
+                        try writer.print("-> ", .{})
+                    else
+                        try writer.print(" ", .{});
+                }
+            }
+        }
 
         try writer.print("] Cost: {}", .{self.get_cost()});
         try writer.writeAll("");
@@ -107,7 +118,6 @@ pub fn bfs(graph: Graph, source: u32, target: u32) !std.ArrayList(Path) {
 
     var queue: AL(Path) = AL(Path).init(graph.allocator);
     defer queue.deinit();
-
     var found: AL(Path) = AL(Path).init(graph.allocator);
     defer found.deinit();
 
@@ -139,7 +149,6 @@ pub fn bfs(graph: Graph, source: u32, target: u32) !std.ArrayList(Path) {
         for (n_nodes.items) |n| {
             // node `n` is already visited
             if (c_path.contains(n)) continue;
-
             var new_path = try c_path.clone();
             try new_path.append(n);
             try queue.append(new_path);
