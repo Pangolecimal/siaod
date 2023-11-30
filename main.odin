@@ -154,7 +154,6 @@ decode :: proc(code: []int) -> (result: string, ok: bool) {
 	if len(code) == 0 || len(code) % 24 != 0 {
 		return result, false
 	}
-
 	res := make([]u8, len(code) / 8) // 3 bytes per 24 bits
 
 	uniques: [4096][24]int
@@ -175,47 +174,31 @@ decode :: proc(code: []int) -> (result: string, ok: bool) {
 	for i := 0; i < len(code); i += 24 {
 		bin := code[i:][:24]
 
-		// m := make(map[int]int)
-		// defer delete(m)
-		min_dist := 999999
-		min_idx := 999999
-		repeats := 1
+		min_dist, min_idx, repeats := 999999, 999999, 1
 		for j in 0 ..< 4096 {
 			d, ok := distance(bin, uniques[j][:])
 			if d < min_dist {
-				min_dist = d
-				min_idx = j
-				repeats = 1
+				min_dist, min_idx, repeats = d, j, 1
 			} else if min_dist == d {
 				repeats += 1
 			}
-			// m[d] += 1
 		}
 		if min_dist > 0 {
-			fmt.eprintln("TRANSMISSION ERROR:")
-			fmt.eprintln("       GOT:", bin)
-			if repeats == 1 {
-				fmt.eprintln("  EXPECTED:", uniques[min_idx][:])
-			}
+			fmt.println("TRANSMISSION ERROR:\n", " GOT:     ", bin)
 		}
-		if repeats > 1 {
-			fmt.eprintln("UNRECOVERABLE TRANSMISSION ERROR:", bin)
-		} else {
+		if repeats == 1 {
 			bin = uniques[min_idx][:]
+			if min_dist > 0 {fmt.println("  EXPECTED:", bin)}
+		} else {
+			fmt.println("UNRECOVERABLE TRANSMISSION ERROR")
 		}
-		// fmt.println(m)
 
-		b := bin[0:8]
-		v: u8
 		for j in 0 ..< 8 {
-			v |= cast(u8)(1 & b[j]) << cast(u8)j
+			res[i / 24] |= cast(u8)(1 & bin[0:8][j]) << cast(u8)j
 		}
-
-		res[i / 24] = v
 	}
 
 	result = transmute(string)res
-
 	return result, true
 }
 
@@ -238,11 +221,17 @@ main :: proc() {
 	fmt.println()
 
 	fmt.println("Transmitted Code:")
-	for i in 0 ..< 3 {
-		idx := rand.int_max(len(res1))
+
+	swap: [24]int
+	for i in 0 ..< 24 {swap[i] = i}
+	rand.shuffle(swap[:])
+	num_errors := 3
+	for i in 0 ..< num_errors {
+		idx := swap[i]
 		res1[idx] = 1 - res1[idx]
 		fmt.printf("  ADD TRANSMISSION ERROR: INDEX=%v, BIT=%v LINE=%v\n", idx, idx % 24, idx / 24)
 	}
+
 	fmt.println()
 	print_code(res1)
 	fmt.println()
@@ -251,6 +240,4 @@ main :: proc() {
 
 	// fmt.println(res1, ok1)
 	fmt.printf("\nDecode: \"%s\"\n", res2)
-
-
 }
