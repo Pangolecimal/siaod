@@ -1,6 +1,7 @@
 package main
 import "core:fmt"
 import "core:strings"
+import "core:math/rand"
 
 BASIS := [12][24]int{
 	{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1},
@@ -109,55 +110,35 @@ encode_string :: proc(word: string) -> (result: []int, ok: bool) {
 	}
 
 	bin := strings.clone(word)
-	spaces := (3 - len(bin) % 3) % 3
-	bin = strings.concatenate({strings.repeat(" ", spaces), bin})
 
-	bs: [dynamic]bit_set[0 ..< 12]
-	defer delete(bs)
+	bit_sets: [dynamic]bit_set[0 ..< 12]
+	defer delete(bit_sets)
 
-	for i in 0 ..< len(bin) - 2 {
-		b := strings.concatenate({bin[i:i + 3]})
-		// fmt.println(
-		// 	strings.right_justify(fmt.tprintf("%b", b[0]), 8, "0"),
-		// 	strings.right_justify(fmt.tprintf("%b", b[1]), 8, "0"),
-		// 	strings.right_justify(fmt.tprintf("%b", b[2]), 8, "0"),
-		// )
-		bs01: bit_set[0 ..< 12]
-		bs12: bit_set[0 ..< 12]
+	for i in 0 ..< len(bin) {
+		b := bin[i]
+		bs: bit_set[0 ..< 12]
 
 		for j in 0 ..< cast(u8)8 {
-			if b[0] & (1 << j) >> j == 1 {
-				bs01 += {cast(int)j}
-			}
-			if b[1] & (1 << j) >> j == 1 {
-				if j < 4 {
-					bs01 += {cast(int)j + 8}
-				}
-				if j >= 4 {
-					bs12 += {cast(int)j}
-				}
-			}
-			if b[2] & (1 << j) >> j == 1 {
-				bs12 += {cast(int)j + 4}
+			if b & (1 << j) >> j == 1 {
+				bs += {cast(int)j}
 			}
 		}
 
-		append(&bs, bs01)
-		append(&bs, bs12)
+		append(&bit_sets, bs)
 	}
 
 
-	result = make([]int, len(bs) * 24)
+	result = make([]int, len(bit_sets) * 24)
 
-	for b, i in bs {
-		res, ok := encode_bitset(b)
+	for bs, i in bit_sets {
+		res, ok := encode_bitset(bs)
 
 		if ok {
 			for j in 0 ..< len(res) {
 				result[i * 24 + j] = res[j]
 			}
 		} else {
-			fmt.eprintln("ERROR:", res, ok, b)
+			fmt.eprintln("ENCODING ERROR:", res, ok, bs)
 		}
 	}
 
@@ -174,39 +155,102 @@ decode :: proc(code: []int) -> (result: string, ok: bool) {
 		return result, false
 	}
 
-	for i := 0; i < len(code); i += 24 {
-		bin := code[i:i + 24]
+	res := make([]u8, len(code) / 8) // 3 bytes per 24 bits
 
-		w := weight(bin)
-		if w != 0 && w != 8 && w != 12 && w != 16 && w != 24 {
-			fmt.eprintln("TRANSMISSION ERROR")
+	uniques: [4096][24]int
+	for i in 0 ..< 4096 {
+		bs: bit_set[0 ..< 12]
+		for j in 0 ..< cast(u8)12 {
+			if i & (1 << j) >> j == 1 {
+				bs += {cast(int)j}
+			}
+		}
+
+		v, ok := encode_bitset(bs)
+		for j in 0 ..< 24 {
+			uniques[i][j] = v[j]
 		}
 	}
+
+	for i := 0; i < len(code); i += 24 {
+		bin := code[i:][:24]
+
+		// m := make(map[int]int)
+		// defer delete(m)
+		min_dist := 999999
+		min_idx := 999999
+		repeats := 1
+		for j in 0 ..< 4096 {
+			d, ok := distance(bin, uniques[j][:])
+			if d < min_dist {
+				min_dist = d
+				min_idx = j
+				repeats = 1
+			} else if min_dist == d {
+				repeats += 1
+			}
+			// m[d] += 1
+		}
+		if min_dist > 0 {
+			fmt.eprintln("TRANSMISSION ERROR:")
+			fmt.eprintln("       GOT:", bin)
+			if repeats == 1 {
+				fmt.eprintln("  EXPECTED:", uniques[min_idx][:])
+			}
+		}
+		if repeats > 1 {
+			fmt.eprintln("UNRECOVERABLE TRANSMISSION ERROR:", bin)
+		} else {
+			bin = uniques[min_idx][:]
+		}
+		// fmt.println(m)
+
+		b := bin[0:8]
+		v: u8
+		for j in 0 ..< 8 {
+			v |= cast(u8)(1 & b[j]) << cast(u8)j
+		}
+
+		res[i / 24] = v
+	}
+
+	result = transmute(string)res
 
 	return result, true
 }
 
-main :: proc() {
-	// word := "lorem ipsum"
-	//
-	// res1, ok1 := encode(word)
-	// // for i in 0 ..< len(res) {
-	// // 	if i % 24 == 0 {fmt.println()}
-	// // 	if i % 12 == 0 && i % 24 != 0 {fmt.print(" ")}
-	// //
-	// // 	fmt.printf("%b", res[i])
-	// // }
-	// // fmt.println()
-	//
-	// res2, ok2 := decode(res1)
-	//
-	// // fmt.println(res1, ok1)
-	// fmt.println(res2, ok2)
+print_code :: proc(code: []int) {
+	for i in 0 ..< len(code) {
+		if i % 24 == 0 && i > 0 {fmt.println()}
+		if i % 12 == 0 && i % 24 != 0 {fmt.print(" ")}
 
-	for i in 0 ..< 4096 {
-		for j in 0 ..< 12 {
-
-		}
+		fmt.printf("%b", code[i])
 	}
+	fmt.println()
+}
+
+main :: proc() {
+	word := "lorem ipsum"
+	fmt.printf("Encode: \"%s\"\n\nCode:\n", word)
+
+	res1, ok1 := encode(word)
+	print_code(res1)
+	fmt.println()
+
+	fmt.println("Transmitted Code:")
+	for i in 0 ..< 3 {
+		idx := rand.int_max(len(res1))
+		res1[idx] = 1 - res1[idx]
+		fmt.printf("  ADD TRANSMISSION ERROR: INDEX=%v, BIT=%v LINE=%v\n", idx, idx % 24, idx / 24)
+	}
+	fmt.println()
+	print_code(res1)
+	fmt.println()
+
+	res2, ok2 := decode(res1)
+
+	// fmt.println(res1, ok1)
+	fmt.printf("\nDecode: \"%s\"\n", res2)
+
 
 }
